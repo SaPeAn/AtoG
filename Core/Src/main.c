@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "RingBuffer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,6 +35,14 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+
+RINGBUF_t APS_rb;
+RINGBUF_t GM_rb;
+uint8_t APS_RX_buf[1024] = {0};
+uint8_t GM_RX_buf[1024] = {0};
+uint8_t tmp;
+uint8_t dataReceived=0;
+uint8_t dataTransmitted=1;
 
 /* USER CODE END PM */
 
@@ -77,16 +85,15 @@ int main(void)
 
   /* USER CODE BEGIN Init */
 
+  RingBuf_Init(APS_RX_buf, 1024, 1, &APS_rb);
+  RingBuf_Init(GM_RX_buf, 1024, 1, &GM_rb);
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
-  uint8_t temp_str[100];
-  uint8_t sendflag = 1;
-  uint8_t state;
 
   /* USER CODE END SysInit */
 
@@ -100,17 +107,37 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  HAL_UART_Receive_IT (&UART_GM, &tmp, 1);
+  HAL_UART_Receive_IT (&UART_APS, &tmp, 1);
+
   while (1)
   {
-	state = HAL_UART_Receive_IT(&huart2, temp_str, 1);
-	if(state == HAL_BUSY) sendflag = 0;
-	if((state != HAL_BUSY) && (sendflag == 0))
-	{
-      HAL_GPIO_WritePin(ASPTXEN_GPIO_Port, ASPTXEN_Pin, GPIO_PIN_SET);
-      HAL_UART_Transmit(&huart2, temp_str, 1, 10);
-	  HAL_GPIO_WritePin(ASPTXEN_GPIO_Port, ASPTXEN_Pin, GPIO_PIN_RESET);
-	  sendflag = 1;
-	}
+    uint16_t GM_buflen;
+    uint16_t APS_buflen;
+    uint8_t APS_message[100];
+    uint8_t GM_message[100];
+    RingBuf_Available(&APS_buflen, &APS_rb);
+    RingBuf_Available(&GM_buflen, &GM_rb);
+
+    if(GM_buflen >= 10)
+    {
+      RingBuf_DataRead(GM_message, GM_buflen, &GM_rb);
+      HAL_GPIO_WritePin(APSTXEN_GPIO_Port, APSTXEN_Pin, GPIO_PIN_SET);
+      HAL_UART_Transmit_IT(&UART_APS, GM_message, GM_buflen);
+    }
+
+    if(APS_buflen >= 1)
+    {
+      RingBuf_DataRead(APS_message, APS_buflen, &APS_rb);
+      for(int i = 0; i < APS_buflen; i++)
+      {
+        if(APS_message[i] == 0x80)
+        {
+          HAL_UART_Transmit_IT(&UART_GM, (APS_message + i), 1);
+        }
+      }
+    }
 
     /* USER CODE END WHILE */
 
@@ -242,7 +269,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(ASPTXEN_GPIO_Port, ASPTXEN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(APSTXEN_GPIO_Port, APSTXEN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LED1_Pin */
   GPIO_InitStruct.Pin = LED1_Pin;
@@ -251,17 +278,45 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : ASPTXEN_Pin */
-  GPIO_InitStruct.Pin = ASPTXEN_Pin;
+  /*Configure GPIO pin : APSTXEN_Pin */
+  GPIO_InitStruct.Pin = APSTXEN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(ASPTXEN_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(APSTXEN_GPIO_Port, &GPIO_InitStruct);
 
 }
 
 /* USER CODE BEGIN 4 */
+/*---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
 
+  if(huart == &UART_APS)
+  {
+    RingBuf_BytePut(tmp, &APS_rb);
+    HAL_UART_Receive_IT (&UART_APS, &tmp, 1);
+  }
+  if(huart == &UART_GM)
+  {
+    RingBuf_BytePut(tmp, &GM_rb);
+    HAL_UART_Receive_IT (&UART_GM, &tmp, 1);
+  }
+}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+
+  if(huart == &UART_APS)
+  {
+    HAL_GPIO_WritePin(APSTXEN_GPIO_Port, APSTXEN_Pin, GPIO_PIN_RESET);
+  }
+  if(huart == &UART_GM)
+  {
+
+  }
+}
+/*---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /* USER CODE END 4 */
 
 /**

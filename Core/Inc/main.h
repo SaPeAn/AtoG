@@ -59,8 +59,8 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define LED1_Pin GPIO_PIN_13
 #define LED1_GPIO_Port GPIOC
-#define ASPTXEN_Pin GPIO_PIN_1
-#define ASPTXEN_GPIO_Port GPIOA
+#define APSTXEN_Pin GPIO_PIN_1
+#define APSTXEN_GPIO_Port GPIOA
 #define APSTX_Pin GPIO_PIN_2
 #define APSTX_GPIO_Port GPIOA
 #define APSRX_Pin GPIO_PIN_3
@@ -70,7 +70,8 @@ void Error_Handler(void);
 #define GMRX_Pin GPIO_PIN_10
 #define GMRX_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */
-
+#define UART_APS huart2
+#define UART_GM  huart1
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
